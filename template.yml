@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+
+Parameters:
+  DiscordPublicKey:
+    Description: Your discord bot's public key
+    Type: String
+  DiscordBotToken:
+    Description: Your discord bot's token (NOT your personal token)
+    Type: String
+
+Resources:
+  ScrapeLambda:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      FunctionName: howdoi-function
+      Environment:
+        Variables:
+          PUBLIC_KEY: !Ref DiscordPublicKey
+          BOT_TOKEN: !Ref DiscordBotToken
+      CodeUri: src
+      Handler: index.how_do_i
+      Runtime: python3.7
+      Timeout: 30
+      Layers:
+        - Ref: PythonRequirementsLayer
+      Role: !GetAtt 
+        - LambdaRole
+        - Arn
+  PythonRequirementsLayer:
+    Type: 'AWS::Serverless::LayerVersion'
+    Properties:
+      LayerName: howdoi-requirements-layer
+      ContentUri: build/output/python_requirements.zip
+  HowdoiApi:
+    Type: 'AWS::ApiGatewayV2::Api'
+    Properties:
+      Name: howdoi-api-gateway
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins:
+          - 'https://discord.com/api'
+        AllowMethods:
+          - POST
+      CredentialsArn: !GetAtt
+        - LambdaRole
+        - Arn
+      Target: !GetAtt 
+        - ScrapeLambda
+        - Arn
+  HowdoiApiOverrides:
+    Type: 'AWS::ApiGatewayV2::ApiGatewayManagedOverrides'
+    Properties:
+      ApiId: !Ref HowdoiApi
+      Stage:
+        AccessLogSettings:
+          DestinationArn: !GetAtt
+            - GatewayLogGroup
+            - Arn
+          Format: >-
+            {"requestId":"$context.requestId", "ip": "$context.identity.sourceIp",
+            "requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod",
+            "routeKey":"$context.routeKey", "status":"$context.status",
+            "protocol":"$context.protocol", "responseLength":"$context.responseLength"}
+  LambdaLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: /aws/lambda/howdoi-function
+      RetentionInDays: 3
+  GatewayLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: /aws/gatewayv2/howdoi-api
+      RetentionInDays: 3
+  LambdaRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      Policies:
+        - PolicyName: CloudWatch
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: '*'
+        - PolicyName: ApiGateway
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'lambda:InvokeFunction'
+                Resource: '*'
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - apigateway.amazonaws.com
+            Action: 'sts:AssumeRole'

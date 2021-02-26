@@ -1,0 +1,4 @@
+.aws-sam/
+build/
+output.yml
+venv/
