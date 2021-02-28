@@ -5,26 +5,42 @@ Parameters:
   DiscordPublicKey:
     Description: Your discord bot's public key
     Type: String
-  DiscordBotToken:
-    Description: Your discord bot's token (NOT your personal token)
+  DiscordBotApplicationId:
+    Description: Your discord bot's application ID
     Type: String
 
 Resources:
   ScrapeLambda:
     Type: 'AWS::Serverless::Function'
     Properties:
-      FunctionName: howdoi-function
+      FunctionName: howdoi-lambda-gateway
       Environment:
         Variables:
           PUBLIC_KEY: !Ref DiscordPublicKey
-          BOT_TOKEN: !Ref DiscordBotToken
-      CodeUri: src
-      Handler: index.how_do_i
+          APPLICATION_ID: !Ref DiscordBotApplicationId
+          PROCESSING_ARN: !GetAtt
+            - ProcessLambda
+            - Arn
+      CodeUri: build/output/lambda_function.zip
+      Handler: src/index.how_do_i
+      Runtime: python3.7
+      Timeout: 5
+      Layers:
+        - Ref: PythonRequirementsLayer
+      Role: !GetAtt
+        - LambdaRole
+        - Arn
+  ProcessLambda:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      FunctionName: howdoi-lambda-process
+      CodeUri: build/output/lambda_function.zip
+      Handler: src/index.process
       Runtime: python3.7
       Timeout: 30
       Layers:
         - Ref: PythonRequirementsLayer
-      Role: !GetAtt 
+      Role: !GetAtt
         - LambdaRole
         - Arn
   PythonRequirementsLayer:
@@ -45,7 +61,7 @@ Resources:
       CredentialsArn: !GetAtt
         - LambdaRole
         - Arn
-      Target: !GetAtt 
+      Target: !GetAtt
         - ScrapeLambda
         - Arn
   HowdoiApiOverrides:
@@ -62,10 +78,15 @@ Resources:
             "requestTime":"$context.requestTime", "httpMethod":"$context.httpMethod",
             "routeKey":"$context.routeKey", "status":"$context.status",
             "protocol":"$context.protocol", "responseLength":"$context.responseLength"}
-  LambdaLogGroup:
+  LambdaLogGroup1:
     Type: 'AWS::Logs::LogGroup'
     Properties:
-      LogGroupName: /aws/lambda/howdoi-function
+      LogGroupName: /aws/lambda/howdoi-lambda-gateway
+      RetentionInDays: 3
+  LambdaLogGroup2:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: /aws/lambda/howdoi-lambda-process
       RetentionInDays: 3
   GatewayLogGroup:
     Type: 'AWS::Logs::LogGroup'
