@@ -1,7 +1,9 @@
 import json
 import logging
 import os
+from random import shuffle
 import requests
+from typing import Optional, Tuple
 
 from tomd import Tomd
 from urllib.parse import urlencode, parse_qs
@@ -13,11 +15,11 @@ from src.utils import get_soup
 logging.basicConfig()
 
 
-def get_follow_up(query):
+def get_follow_up(query: str) -> Tuple[Optional[str], Optional[str]]:
     logger = logging.getLogger('follow-up')
     logger.setLevel('DEBUG')
 
-    url = DDG_QUERY_URL.format(urlencode({'q': query + ' site:answers.yahoo.com'}))
+    url = DDG_QUERY_URL.format(urlencode({'q': query + ' site:answers.yahoo.com/question'}))
     soup = get_soup(url)
 
     # Get top 3 links
@@ -30,7 +32,9 @@ def get_follow_up(query):
  
     if not len(ya_links):
         logger.debug('No answers found')
-        return NO_RESULTS_MESSAGE.format(query)
+        return (None, None)
+
+    shuffle(ya_links)
 
     # For each link, see if it's answered (has 1+ answer). Return the first one
     # found. If none are found in any links, return that no results are found
@@ -48,23 +52,31 @@ def get_follow_up(query):
             continue
 
         ya_question = soup.find('h1', {'class': lambda c: c is not None and c.startswith('Question__title___')}).text
-        str_answer = top_answer_body.encode_contents(formatter=None).decode("utf-8").strip()
-        md_answer = Tomd(str_answer).markdown.strip()
+        answer = top_answer_body.encode_contents(formatter=None).decode("utf-8").strip()
 
         logger.debug('Found answer')
-        return RESPONSE_MESSAGE.format(ya_question, md_answer).strip()
+        return (ya_question, answer)
 
     logger.debug('No answers found')
-    return NO_RESULTS_MESSAGE.format(query)
+    return (None, None)
 
-def response_handler(event, context):
+def response_handler(event: dict, context: dict) -> dict:
     logger = logging.getLogger('howdoi-processor')
     logger.setLevel(logging.DEBUG)
 
     logger.debug(f"event {event}")
+    query = event['query']
+
+    question, answer = get_follow_up(query)
+
+    if question is None:
+        response = NO_RESULTS_MESSAGE.format(query)
+    else:
+        md_answer = Tomd(answer).markdown.replace('\n\n', '\n').strip()
+        response = RESPONSE_MESSAGE.format(question, md_answer).strip()
 
     updated_answer = {
-        'content': get_follow_up(event['query'])
+        'content': response
     }
 
     r = requests.post(

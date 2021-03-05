@@ -10,8 +10,7 @@ from src.utils import ping_pong, discord_response, verify_signature
 logging.basicConfig()
 
 
-
-def input_handler(event, context):
+def input_handler(event: dict, context: dict) -> dict:
     logger = logging.getLogger('howdoi')
     logger.setLevel(logging.DEBUG)
 
