@@ -12,6 +12,7 @@ PYTHON_ZIP_NAME="lambda_function.zip"
 echo "Creating $BUILD_DIR directory structure..."
 mkdir -p $SITE_PACKAGES_DIR
 mkdir -p $OUTPUT_DIR
+rm -rf $OUTPUT_DIR/*
 
 echo "Installing requirements in docker..."
 docker run -v "$PWD":/var/task "lambci/lambda:build-$PYTHON_VERSION" /bin/sh -c "pip install -r requirements.txt -t $SITE_PACKAGES_DIR"

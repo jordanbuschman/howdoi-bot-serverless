@@ -22,7 +22,7 @@ Resources:
             - ProcessLambda
             - Arn
       CodeUri: build/output/lambda_function.zip
-      Handler: src/index.how_do_i
+      Handler: src/input.input_handler
       Runtime: python3.7
       Timeout: 5
       Layers:
@@ -35,7 +35,7 @@ Resources:
     Properties:
       FunctionName: howdoi-lambda-process
       CodeUri: build/output/lambda_function.zip
-      Handler: src/index.process
+      Handler: src/response.response_handler
       Runtime: python3.7
       Timeout: 30
       Layers:

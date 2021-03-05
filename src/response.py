@@ -1,39 +1,23 @@
+import json
 import logging
+import os
 import requests
 
-from bs4 import BeautifulSoup as bs
 from tomd import Tomd
 from urllib.parse import urlencode, parse_qs
 
-RESPONSE_TYPES =  {
-    'PONG': 1,
-    'ACK_NO_SOURCE': 2,
-    'MESSAGE_NO_SOURCE': 3,
-    'MESSAGE_WITH_SOURCE': 4,
-    'ACK_WITH_SOURCE': 5
-}
-DDG_QUERY_URL = 'https://duckduckgo.com/html/?{}'
-RESPONSE_MESSAGE = '**I interpreted your question as: "{}"**\n\n**Here\'s your answer:**\n{}'
-NO_RESULTS_MESSAGE = 'Beep boop, no results found for "{}"'
+from src.constants import NO_RESULTS_MESSAGE, RESPONSE_MESSAGE, FOLLOW_UP_URL, DDG_QUERY_URL
+from src.utils import get_soup
 
-def get_soup(url):
-    page = requests.get(url, headers={'User-agent': 'Mozilla/5.0'})
-    return bs(page.text, features='html.parser')
 
-def response(message):
-    return {
-        'type': RESPONSE_TYPES['MESSAGE_WITH_SOURCE'],
-        'data': {
-            'tts': False,
-            'content': message,
-        }
-    }
+logging.basicConfig()
+
 
 def get_follow_up(query):
     logger = logging.getLogger('follow-up')
     logger.setLevel('DEBUG')
 
-    url = DDG_QUERY_URL.format(urlencode({'q': query}))
+    url = DDG_QUERY_URL.format(urlencode({'q': query + ' site:answers.yahoo.com'}))
     soup = get_soup(url)
 
     # Get top 3 links
@@ -46,7 +30,7 @@ def get_follow_up(query):
  
     if not len(ya_links):
         logger.debug('No answers found')
-        return response(NO_RESULTS_MESSAGE.format(query))
+        return NO_RESULTS_MESSAGE.format(query)
 
     # For each link, see if it's answered (has 1+ answer). Return the first one
     # found. If none are found in any links, return that no results are found
@@ -72,3 +56,26 @@ def get_follow_up(query):
 
     logger.debug('No answers found')
     return NO_RESULTS_MESSAGE.format(query)
+
+def response_handler(event, context):
+    logger = logging.getLogger('howdoi-processor')
+    logger.setLevel(logging.DEBUG)
+
+    logger.debug(f"event {event}")
+
+    updated_answer = {
+        'content': get_follow_up(event['query'])
+    }
+
+    r = requests.post(
+        FOLLOW_UP_URL.format(event['application_id'], event['token']),
+        headers={'Content-Type': 'application/json'},
+        data=json.dumps(updated_answer)
+    )
+    
+    if r.status_code == 200:
+        logger.debug('Sent message successfully')
+    else:
+        logger.debug(f"Discord responded with status code {r.status_code}: {r.text}")
+
+    return {}
