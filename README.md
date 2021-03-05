@@ -8,7 +8,18 @@ Ever have an existential question that you _need_ to know the answer to? Howdoi-
 - [Docker desktop](https://www.docker.com/products/docker-desktop)
 - An AWS account
 
-## Setup/Installation
+## Codebase
+
+- `template.yml`: defines the project, including a gateway, 2 lambda functions, log groups, and IAM roles.
+- `bin/register_command.sh`: For registering your slash command with Discord the first time you set up the project.
+- `bin/setup.sh`:
+  - Creates the `/build` directory
+  - Installs dependencies in Amazon Linux using Docker, and creates a .zip of the dependencies
+  - Takes all the code in `/src` and creates a second .zip
+- `src/input.py`: Contains the lambda handler that Discord talks to.
+- `src/response.py`: Contains the lambda handler that actually fetches your response (as this can take longer than Discord allows slash commands to take).
+
+## First Time Setup
 
 1. Create a new Discord application and bot on the [Discord developer portal](https://discord.com/developers/applications). Note the bot's public key and bot token.
 2. Install and zip python package requirements with `bash bin/setup.sh`.
@@ -38,9 +49,9 @@ Ever have an existential question that you _need_ to know the answer to? Howdoi-
 8. Register your slash command. You can run the curl command in `bin/register_command.sh` after adding your application ID/bot token (see further reading for more info).
 9. Invite your discord bot to your room. Enjoy the shitposts!
 
-## Architecture
+## Pushing Out Changes
 
-TODO
+Whenever you update the code, you can do steps 2, 4, and 5 to update your Cloudformation stack. In step 4, You may need to pass in the `--force-upload` flag for your assets to replace the old ones in S3.
 
 ## Further Reading
 
